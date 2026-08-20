@@ -76,19 +76,12 @@ impl OverlayWindow {
             &aux,
         )?;
 
-        // Gamescope Overlay atom: STEAM_OVERLAY = 1
-        // Using STEAM_OVERLAY allows MangoApp (which uses GAMESCOPE_EXTERNAL_OVERLAY)
-        // and Zotaque to render simultaneously on separate compositor planes!
-        let steam_overlay = conn.intern_atom(false, b"STEAM_OVERLAY")?.reply()?.atom;
+        // Non-interfering overlay properties:
+        // Never hijack STEAM_OVERLAY (reserved for Steam QAM menu)
+        // Set GAMESCOPE_NO_FOCUS = 1 so gamepad/keyboard inputs are never stolen
         let gs_no_focus = conn.intern_atom(false, b"GAMESCOPE_NO_FOCUS")?.reply()?.atom;
-
-        conn.change_property32(
-            PropMode::REPLACE,
-            window,
-            steam_overlay,
-            AtomEnum::CARDINAL,
-            &[1],
-        )?;
+        let net_wm_window_type = conn.intern_atom(false, b"_NET_WM_WINDOW_TYPE")?.reply()?.atom;
+        let net_wm_type_notification = conn.intern_atom(false, b"_NET_WM_WINDOW_TYPE_NOTIFICATION")?.reply()?.atom;
 
         conn.change_property32(
             PropMode::REPLACE,
@@ -96,6 +89,14 @@ impl OverlayWindow {
             gs_no_focus,
             AtomEnum::CARDINAL,
             &[1],
+        )?;
+
+        conn.change_property32(
+            PropMode::REPLACE,
+            window,
+            net_wm_window_type,
+            AtomEnum::ATOM,
+            &[net_wm_type_notification],
         )?;
 
         // Set 100% Click-Through Input Mask via XShape extension
