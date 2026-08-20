@@ -37,6 +37,12 @@ class MotionCuesHandler(BaseHTTPRequestHandler):
         # Suppress noisy HTTP access logs during continuous SSE streaming
         pass
 
+    def do_HEAD(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+
     def do_GET(self):
         if self.path == "/" or self.path == "/index.html":
             self.send_response(200)
