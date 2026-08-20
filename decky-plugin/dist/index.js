@@ -4,12 +4,14 @@
   var React = window.SP_REACT || window.React;
   var DFL = window.DFL || {};
 
-  // Global Persistent In-Game Overlay Manager
+  // Global In-Game Overlay Manager
   function InGameOverlayManager() {
     this.canvas = null;
     this.ctx = null;
-    this.eventSource = null;
     this.animFrameId = null;
+    this.serverAPI = null;
+    this.hookListener = null;
+    this.pollTimer = null;
     this.isRunning = false;
     this.config = {
       tilt_sensitivity: 1.0,
@@ -36,9 +38,10 @@
     return document;
   };
 
-  InGameOverlayManager.prototype.start = function () {
+  InGameOverlayManager.prototype.start = function (serverAPI) {
     if (this.isRunning) return;
     this.isRunning = true;
+    this.serverAPI = serverAPI;
 
     var targetDoc = this.getRootDocument();
     var el = targetDoc.getElementById("zotaque-in-game-motion-cues");
@@ -63,24 +66,40 @@
     this._onResize = function () { self.resizeCanvas(); };
     window.addEventListener("resize", this._onResize);
 
-    try {
-      if (this.eventSource) this.eventSource.close();
-      this.eventSource = new EventSource("http://127.0.0.1:8765/events");
-      this.eventSource.onmessage = function (e) {
-        try {
-          self.motionVector = JSON.parse(e.data);
-        } catch (err) {}
-      };
-    } catch (err) {}
+    // 1. Hook native Decky router event
+    if (serverAPI && serverAPI.router && serverAPI.router.hook) {
+      try {
+        this.hookListener = serverAPI.router.hook("zotaque_motion", function (data) {
+          if (data) self.motionVector = data;
+        });
+      } catch (err) {}
+    }
+
+    // 2. High-speed fallback poll via direct plugin method
+    if (serverAPI && serverAPI.callPluginMethod) {
+      this.pollTimer = setInterval(function () {
+        serverAPI.callPluginMethod("get_motion_sample", {})
+          .then(function (res) {
+            if (res && res.success && res.result) {
+              self.motionVector = res.result;
+            }
+          })
+          .catch(function () {});
+      }, 50); // 20 Hz fallback
+    }
 
     this.animate();
   };
 
   InGameOverlayManager.prototype.stop = function () {
     this.isRunning = false;
-    if (this.eventSource) {
-      this.eventSource.close();
-      this.eventSource = null;
+    if (this.hookListener && this.hookListener.unregister) {
+      try { this.hookListener.unregister(); } catch (e) {}
+      this.hookListener = null;
+    }
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
     }
     if (this.animFrameId) {
       cancelAnimationFrame(this.animFrameId);
@@ -163,15 +182,13 @@
   }
   var overlay = window.__zotaque_overlay_mgr;
 
-  // React Component using native Steam / DFL components for full joystick navigation
+  // React Component with native Steam gamepad navigation
   function ZotaquePanel(props) {
     var serverAPI = props.serverAPI;
     var _a = React.useState(overlay.isRunning), inGameEnabled = _a[0], setInGameEnabled = _a[1];
     var _b = React.useState(overlay.config.tilt_sensitivity), tiltSens = _b[0], setTiltSens = _b[1];
     var _c = React.useState(overlay.config.dot_color), dotColor = _c[0], setDotColor = _c[1];
-    var _d = React.useState("rainbow"), rgbMode = _d[0], setRgbMode = _d[1];
-    var _e = React.useState(80), brightness = _e[0], setBrightness = _e[1];
-    var _f = React.useState(null), apuTemp = _f[0], setApuTemp = _f[1];
+    var _d = React.useState(null), apuTemp = _d[0], setApuTemp = _d[1];
 
     React.useEffect(function () {
       if (serverAPI && serverAPI.callPluginMethod) {
@@ -187,19 +204,8 @@
 
     var toggleMotionCues = function (checked) {
       setInGameEnabled(checked);
-      if (checked) overlay.start();
+      if (checked) overlay.start(serverAPI);
       else overlay.stop();
-    };
-
-    var updateRgb = function (mode, b) {
-      if (serverAPI && serverAPI.callPluginMethod) {
-        serverAPI.callPluginMethod("set_rgb_mode", {
-          mode: mode,
-          hex_color: "00e5ff",
-          brightness: b,
-          speed: 5
-        }).catch(function () {});
-      }
     };
 
     var PanelSection = DFL.PanelSection || 'div';
@@ -214,13 +220,6 @@
       { data: "#ff007f", label: "Neon Pink" },
       { data: "#ffaa00", label: "Amber Orange" },
       { data: "#ffffff", label: "Pure White" }
-    ];
-
-    var rgbOptions = [
-      { data: "rainbow", label: "Rainbow Wave" },
-      { data: "static", label: "Static Teal" },
-      { data: "breathing", label: "Breathing" },
-      { data: "off", label: "Disabled" }
     ];
 
     return React.createElement(
@@ -256,6 +255,9 @@
             onChange: function (val) {
               setTiltSens(val);
               overlay.config.tilt_sensitivity = val;
+              if (serverAPI && serverAPI.callPluginMethod) {
+                serverAPI.callPluginMethod("update_motion_config", { tilt_sensitivity: val });
+              }
             }
           })
         ) : null,
@@ -273,39 +275,6 @@
             }
           })
         ) : null
-      ),
-      React.createElement(
-        PanelSection,
-        { title: "RGB Stick Lighting" },
-        DropdownItem ? React.createElement(
-          PanelSectionRow,
-          null,
-          React.createElement(DropdownItem, {
-            label: "Halo Rings Mode",
-            rgOptions: rgbOptions,
-            selectedOption: rgbMode,
-            onChange: function (opt) {
-              var val = opt.data || opt;
-              setRgbMode(val);
-              updateRgb(val, brightness);
-            }
-          })
-        ) : null,
-        SliderField ? React.createElement(
-          PanelSectionRow,
-          null,
-          React.createElement(SliderField, {
-            label: "Brightness",
-            value: brightness,
-            min: 0,
-            max: 100,
-            step: 5,
-            onChange: function (val) {
-              setBrightness(val);
-              updateRgb(rgbMode, val);
-            }
-          })
-        ) : null
       )
     );
   }
@@ -316,7 +285,9 @@
       title: React.createElement("div", { className: TitleClass }, "Zotaque"),
       content: React.createElement(ZotaquePanel, { serverAPI: serverAPI }),
       icon: React.createElement("span", null, "🚗"),
-      onDismount: function () {}
+      onDismount: function () {
+        overlay.stop();
+      }
     };
   }
 
