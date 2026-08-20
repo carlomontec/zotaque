@@ -1,0 +1,12 @@
+[Unit]
+Description=Zotaque RGB Lighting Controller for Zotac Zone
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/zotaque rgb rainbow --brightness 80
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=default.target

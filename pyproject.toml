@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zotaque"
+version = "0.1.0"
+description = "User-space Companion Suite & Drivers for Zotac Gaming Zone on Bazzite / Linux"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+    { name = "Zotaque Team" }
+]
+dependencies = [
+    "hidapi>=0.14.0",
+    "evdev>=1.7.0; sys_platform == 'linux'",
+    "numpy>=1.22.0",
+    "scipy>=1.8.0",
+    "websockets>=11.0",
+    "asyncio-dgram>=2.1.0"
+]
+
+[project.scripts]
+zotaque = "zotaque.cli:main"

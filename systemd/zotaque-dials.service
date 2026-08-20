@@ -1,0 +1,12 @@
+[Unit]
+Description=Zotaque Radial Dial Input Mapper for Zotac Zone
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/zotaque dials --left brightness --right volume
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=default.target

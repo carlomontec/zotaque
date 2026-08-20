@@ -1,0 +1,9 @@
+{
+  "name": "Zotaque",
+  "author": "Zotaque Team",
+  "flags": [],
+  "publish": {
+    "tags": ["hardware", "zotac", "rgb", "motion-cues", "fans"],
+    "description": "Companion controller for Zotac Gaming Zone on SteamOS / Bazzite"
+  }
+}

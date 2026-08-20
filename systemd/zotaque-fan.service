@@ -1,0 +1,12 @@
+[Unit]
+Description=Zotaque Fan Curve Controller for Zotac Zone
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/zotaque fan --interval 2.0 --hysteresis 3.0
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=default.target
