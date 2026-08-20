@@ -54,16 +54,19 @@ class IIOIMUSensor:
 
     def read_accel(self) -> Tuple[float, float, float]:
         """
-        Returns (accel_x, accel_y, accel_z) in m/s^2.
+        Returns (accel_x, accel_y, accel_z) in m/s^2 mapped to landscape screen orientation.
+        Zotac Zone native sensor is rotated: UP on the chip is the right side of the device.
         """
         raw_x = self._read_raw_node("in_accel_x_raw") or 0
         raw_y = self._read_raw_node("in_accel_y_raw") or 0
         raw_z = self._read_raw_node("in_accel_z_raw") or 0
-        return (
-            raw_x * self.accel_scale,
-            raw_y * self.accel_scale,
-            raw_z * self.accel_scale
-        )
+
+        # Transform from portrait motherboard orientation to landscape gaming orientation
+        # Native X -> Landscape Y, Native Y -> Landscape X
+        land_x = raw_y * self.accel_scale
+        land_y = -raw_x * self.accel_scale
+        land_z = raw_z * self.accel_scale
+        return (land_x, land_y, land_z)
 
     def read_gyro(self) -> Tuple[float, float, float]:
         """
