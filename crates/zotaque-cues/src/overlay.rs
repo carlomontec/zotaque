@@ -11,6 +11,7 @@ use x11rb::protocol::xproto::{
     ImageFormat, PropMode, VisualClass, Visualid, Window, WindowClass,
 };
 use x11rb::rust_connection::RustConnection;
+use x11rb::wrapper::ConnectionExt as WrapperConnectionExt;
 
 use crate::filter::{FilterConfig, MotionCuesFilter};
 use crate::sensor::IMUSensor;
