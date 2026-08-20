@@ -13,9 +13,9 @@ except ImportError:
     hid = None
 
 # Known Zotac Zone Controller USB IDs (composite controller + RGB MCU)
-ZOTAC_VIDS = [0x197d, 0x0483, 0x1a40]
+ZOTAC_VIDS = [0x1ee9, 0x197d, 0x0483, 0x1a40]
 # Specific Known PIDs for Zotac Handheld MCU
-ZOTAC_PIDS = [0x8840, 0x5750, 0x0001, 0x0002]
+ZOTAC_PIDS = [0x1590, 0x8840, 0x5750, 0x0001, 0x0002]
 
 class ZotacRGBController:
     """Manages RGB Halo Rings and Accent LEDs on the Zotac Zone."""
