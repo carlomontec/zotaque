@@ -7,8 +7,8 @@ use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Transform};
 use x11rb::connection::Connection;
 use x11rb::protocol::shape::{self, ConnectionExt as ShapeConnectionExt};
 use x11rb::protocol::xproto::{
-    self, ClipOrdering, ColormapAlloc, ConnectionExt, CreateWindowAux, EventMask, Gcontext,
-    ImageFormat, VisualClass, Visualid, Window, WindowClass,
+    self, AtomEnum, ClipOrdering, ColormapAlloc, ConnectionExt, CreateWindowAux, EventMask, Gcontext,
+    ImageFormat, PropMode, VisualClass, Visualid, Window, WindowClass,
 };
 use x11rb::rust_connection::RustConnection;
 
@@ -74,6 +74,29 @@ impl OverlayWindow {
             visual_id,
             &aux,
         )?;
+
+        // Intern Atoms for Gamescope compositor overlay layer
+        let net_wm_window_type = conn.intern_atom(false, b"_NET_WM_WINDOW_TYPE")?.reply()?.atom;
+        let net_wm_type_dock = conn.intern_atom(false, b"_NET_WM_WINDOW_TYPE_DOCK")?.reply()?.atom;
+        let net_wm_state = conn.intern_atom(false, b"_NET_WM_STATE")?.reply()?.atom;
+        let net_wm_state_above = conn.intern_atom(false, b"_NET_WM_STATE_ABOVE")?.reply()?.atom;
+        let net_wm_state_stays_on_top = conn.intern_atom(false, b"_NET_WM_STATE_STAYS_ON_TOP")?.reply()?.atom;
+
+        let _ = conn.change_property32(
+            PropMode::REPLACE,
+            window,
+            net_wm_window_type,
+            AtomEnum::ATOM,
+            &[net_wm_type_dock],
+        );
+
+        let _ = conn.change_property32(
+            PropMode::REPLACE,
+            window,
+            net_wm_state,
+            AtomEnum::ATOM,
+            &[net_wm_state_above, net_wm_state_stays_on_top],
+        );
 
         // Set 100% Click-Through Input Mask via XShape extension
         // Games receive 100% of touches, buttons, and clicks!
