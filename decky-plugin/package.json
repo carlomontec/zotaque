@@ -1,0 +1,24 @@
+{
+  "name": "zotaque-decky-plugin",
+  "version": "0.1.0",
+  "description": "Decky Loader Plugin for Zotac Zone Linux Toolkit",
+  "scripts": {
+    "build": "rollup -c",
+    "watch": "rollup -c -w"
+  },
+  "dependencies": {
+    "decky-frontend-lib": "^4.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-icons": "^4.10.0"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.0",
+    "@rollup/plugin-node-resolve": "^15.1.0",
+    "@rollup/plugin-replace": "^5.0.2",
+    "@rollup/plugin-typescript": "^11.1.2",
+    "@types/react": "^18.2.0",
+    "rollup": "^3.28.0",
+    "typescript": "^5.1.6"
+  }
+}
