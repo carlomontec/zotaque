@@ -5,10 +5,17 @@ Streams realtime IMU motion vectors at 50Hz and saves GUI calibration preference
 
 import json
 import logging
+import os
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Any, Dict
+
+# Ensure project root is on sys.path
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 from zotaque.core.config import load_config, save_config
 from zotaque.motion_cues.filter import MotionCuesFilter
