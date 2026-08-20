@@ -1,5 +1,14 @@
 # Zotaque 🎮⚡
 
+> [!WARNING]
+> **AI Generated Code & Experimental Hardware Toolkit**  
+> This project is generated and maintained with the assistance of **Gemini 3.7** via Google Antigravity. It is provided for educational, research, and experimental purposes.
+
+> [!CAUTION]
+> **Disclaimer & Limitation of Liability**: Use at your own risk. The authors, contributors, and AI model providers make no warranties regarding stability, safety, or functionality. Manipulating hardware registers, thermal curves, embedded controllers (EC), or power limits carries inherent risks. The authors assume no liability for hardware damage, data loss, kernel panics, or any other issues arising from the use of this software.
+
+---
+
 **Zotaque** is a pure user-space Linux companion suite and hardware toolkit specifically built for the **ZOTAC GAMING ZONE** running **Bazzite Linux** (or SteamOS / Atomic Fedora Silverblue).
 
 ---
@@ -90,3 +99,9 @@ Run test suite:
 ```bash
 python3 -m unittest discover tests/
 ```
+
+---
+
+## 📄 License
+
+This project is open source and licensed under the [MIT License](file:///Users/carlo/Library/CloudStorage/OneDrive-Personal/code/Zotaque/LICENSE).
