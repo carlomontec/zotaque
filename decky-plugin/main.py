@@ -1,13 +1,20 @@
 import asyncio
 import os
 import sys
+from pathlib import Path
 import decky_plugin
 
-# Add parent dir to sys.path to import zotaque modules
-PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
-PARENT_DIR = os.path.dirname(PLUGIN_DIR)
-if PARENT_DIR not in sys.path:
-    sys.path.insert(0, PARENT_DIR)
+# Robust path discovery for zotaque package
+PLUGIN_DIR = Path(__file__).resolve().parent
+search_paths = [
+    str(PLUGIN_DIR),
+    str(PLUGIN_DIR.parent),
+    str(Path.home() / "zotaque"),
+    "/home/zurdo/zotaque",
+]
+for p in search_paths:
+    if os.path.exists(p) and p not in sys.path:
+        sys.path.insert(0, p)
 
 from zotaque.fan.curve import ThermalMonitor
 from zotaque.motion_cues.filter import MotionCuesFilter
@@ -18,11 +25,14 @@ from zotaque.rgb.controller import ZotacRGBController
 class Plugin:
     async def _main(self):
         decky_plugin.logger.info("Zotaque Decky Plugin Initializing...")
-        self.rgb = ZotacRGBController()
-        self.sensor = IIOIMUSensor()
-        self.filter = MotionCuesFilter(tilt_sensitivity=1.2, dynamic_sensitivity=1.2)
-        self.motion_task = asyncio.create_task(self._motion_loop())
-        decky_plugin.logger.info("Zotaque Motion Cues background task started.")
+        try:
+            self.rgb = ZotacRGBController()
+            self.sensor = IIOIMUSensor()
+            self.filter = MotionCuesFilter(tilt_sensitivity=1.2, dynamic_sensitivity=1.2)
+            self.motion_task = asyncio.create_task(self._motion_loop())
+            decky_plugin.logger.info("Zotaque Motion Cues background task started successfully.")
+        except Exception as e:
+            decky_plugin.logger.error(f"Error during Zotaque _main: {e}")
 
     async def _unload(self):
         decky_plugin.logger.info("Zotaque Decky Plugin Unloading...")
@@ -48,14 +58,17 @@ class Plugin:
                 await asyncio.sleep(0.5)
 
     async def get_motion_sample(self):
-        """Direct fallback query for current 2D motion vector."""
-        sample = self.sensor.read_sample()
-        return self.filter.process_imu_sample(
-            sample["accel_x"],
-            sample["accel_y"],
-            sample["accel_z"],
-            timestamp=sample["timestamp"]
-        )
+        """Direct query for current 2D motion vector."""
+        try:
+            sample = self.sensor.read_sample()
+            return self.filter.process_imu_sample(
+                sample["accel_x"],
+                sample["accel_y"],
+                sample["accel_z"],
+                timestamp=sample["timestamp"]
+            )
+        except Exception as e:
+            return {"dx": 0.0, "dy": 0.0, "intensity": 0.0, "error": str(e)}
 
     async def update_motion_config(self, config: dict):
         """Updates tilt sensitivity or smoothing live."""
