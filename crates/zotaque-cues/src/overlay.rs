@@ -76,28 +76,27 @@ impl OverlayWindow {
             &aux,
         )?;
 
-        // Intern Atoms for Gamescope compositor overlay layer
-        let net_wm_window_type = conn.intern_atom(false, b"_NET_WM_WINDOW_TYPE")?.reply()?.atom;
-        let net_wm_type_dock = conn.intern_atom(false, b"_NET_WM_WINDOW_TYPE_DOCK")?.reply()?.atom;
-        let net_wm_state = conn.intern_atom(false, b"_NET_WM_STATE")?.reply()?.atom;
-        let net_wm_state_above = conn.intern_atom(false, b"_NET_WM_STATE_ABOVE")?.reply()?.atom;
-        let net_wm_state_stays_on_top = conn.intern_atom(false, b"_NET_WM_STATE_STAYS_ON_TOP")?.reply()?.atom;
+        // Gamescope-native overlay atoms (same as MangoApp)
+        // GAMESCOPE_EXTERNAL_OVERLAY = 1 → composite on top of all games
+        // GAMESCOPE_NO_FOCUS = 1 → never steal gamepad/keyboard focus
+        let gs_overlay = conn.intern_atom(false, b"GAMESCOPE_EXTERNAL_OVERLAY")?.reply()?.atom;
+        let gs_no_focus = conn.intern_atom(false, b"GAMESCOPE_NO_FOCUS")?.reply()?.atom;
 
-        let _ = conn.change_property32(
+        conn.change_property32(
             PropMode::REPLACE,
             window,
-            net_wm_window_type,
-            AtomEnum::ATOM,
-            &[net_wm_type_dock],
-        );
+            gs_overlay,
+            AtomEnum::CARDINAL,
+            &[1],
+        )?;
 
-        let _ = conn.change_property32(
+        conn.change_property32(
             PropMode::REPLACE,
             window,
-            net_wm_state,
-            AtomEnum::ATOM,
-            &[net_wm_state_above, net_wm_state_stays_on_top],
-        );
+            gs_no_focus,
+            AtomEnum::CARDINAL,
+            &[1],
+        )?;
 
         // Set 100% Click-Through Input Mask via XShape extension
         // Games receive 100% of touches, buttons, and clicks!
