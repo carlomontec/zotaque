@@ -3,12 +3,12 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use tiny_skia::{Color, Paint, PathBuilder, Pixmap, PixmapMut, Transform};
+use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Transform};
 use x11rb::connection::Connection;
-use x11rb::protocol::shape::{self, Kind, Op, SO};
+use x11rb::protocol::shape::{self, ConnectionExt as ShapeConnectionExt};
 use x11rb::protocol::xproto::{
-    self, AtomEnum, ColormapAlloc, ConnectionExt, CreateWindowAux, EventMask, Gcontext,
-    ImageFormat, PropMode, VisualClass, Visualid, Window, WindowClass,
+    self, ClipOrdering, ColormapAlloc, ConnectionExt, CreateWindowAux, EventMask, Gcontext,
+    ImageFormat, VisualClass, Visualid, Window, WindowClass,
 };
 use x11rb::rust_connection::RustConnection;
 
@@ -77,16 +77,15 @@ impl OverlayWindow {
 
         // Set 100% Click-Through Input Mask via XShape extension
         // Games receive 100% of touches, buttons, and clicks!
-        shape::combine_rectangles(
-            &conn,
-            Op::SET,
-            Kind::INPUT,
-            SO::UNSORTED,
+        let _ = conn.shape_rectangles(
+            shape::SO::SET,
+            shape::SK::INPUT,
+            ClipOrdering::UNSORTED,
             window,
             0,
             0,
             &[],
-        )?;
+        );
 
         let gc = conn.generate_id()?;
         conn.create_gc(gc, window, &xproto::CreateGCAux::new())?;
