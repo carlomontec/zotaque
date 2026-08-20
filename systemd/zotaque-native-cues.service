@@ -1,0 +1,13 @@
+[Unit]
+Description=Zotaque Native Gamescope Motion Cues Overlay Daemon
+After=gamescope-session-plus@steam.service
+
+[Service]
+Type=simple
+Environment=DISPLAY=:0
+ExecStart=%h/.local/bin/zotaque-cues
+Restart=on-failure
+RestartSec=2s
+
+[Install]
+WantedBy=default.target

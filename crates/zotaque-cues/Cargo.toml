@@ -1,0 +1,12 @@
+[package]
+name = "zotaque-cues"
+version = "0.1.0"
+edition = "2021"
+authors = ["Zotaque Team"]
+description = "High-performance native Gamescope Vehicle Motion Cues overlay for Zotac Zone"
+
+[dependencies]
+x11rb = { version = "0.13", features = ["allow-unsafe-code", "shape", "composite"] }
+tiny-skia = "0.11"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
