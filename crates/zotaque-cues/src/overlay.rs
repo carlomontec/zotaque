@@ -76,42 +76,14 @@ impl OverlayWindow {
             &aux,
         )?;
 
-        // Gamescope-native overlay: same as MangoApp, shows on top of all games
+        // Gamescope-native overlay: shows on top of all games
+        // NOTE: GAMESCOPE_EXTERNAL_OVERLAY is exclusive - MangoHUD disappears when cues are active.
+        // Known limitation: toggle cues OFF in Decky to restore MangoHUD. Fix planned for next session.
         let gs_overlay = conn.intern_atom(false, b"GAMESCOPE_EXTERNAL_OVERLAY")?.reply()?.atom;
         let gs_no_focus = conn.intern_atom(false, b"GAMESCOPE_NO_FOCUS")?.reply()?.atom;
 
         conn.change_property32(PropMode::REPLACE, window, gs_overlay, AtomEnum::CARDINAL, &[1])?;
         conn.change_property32(PropMode::REPLACE, window, gs_no_focus, AtomEnum::CARDINAL, &[1])?;
-
-        // XShape BOUNDING region: only the 4 border strips where dots actually appear.
-        // The full 1920x1080 transparent canvas would obscure MangoHUD - by restricting
-        // our visible shape to narrow border strips, MangoHUD is never covered.
-        // Top-left corner (first 280x120px) is excluded entirely for MangoHUD.
-        let w = width as i16;
-        let h = height as i16;
-        let strip: i16 = 56;    // px strip width: dot margin + radius + glow room
-        let mango_w: i16 = 280; // exclude this width from top edge (MangoHUD lives here)
-        let mango_h: i16 = 120; // exclude this height from left edge (MangoHUD lives here)
-
-        let bounding = vec![
-            // Top edge: starts after MangoHUD width
-            Rectangle { x: mango_w, y: 0, width: (w - mango_w) as u16, height: strip as u16 },
-            // Bottom edge: full width
-            Rectangle { x: 0, y: h - strip, width: w as u16, height: strip as u16 },
-            // Left edge: starts below MangoHUD height
-            Rectangle { x: 0, y: mango_h, width: strip as u16, height: (h - mango_h) as u16 },
-            // Right edge: full height
-            Rectangle { x: w - strip, y: 0, width: strip as u16, height: h as u16 },
-        ];
-
-        // Apply bounding shape so compositor only renders our border strips
-        conn.shape_rectangles(
-            shape::SO::SET,
-            shape::SK::BOUNDING,
-            ClipOrdering::UNSORTED,
-            window, 0, 0,
-            &bounding,
-        )?;
 
         // Input shape: empty = 100% click-through, no input ever stolen from games
         let _ = conn.shape_rectangles(
