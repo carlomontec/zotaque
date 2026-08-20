@@ -89,7 +89,7 @@ impl MotionCuesFilter {
 
         // 5. Output 2D motion shift vector [-1.0, 1.0]
         let raw_dx = -(dyn_x * self.config.dynamic_sensitivity / 4.0 + tilt_x * 0.4);
-        let raw_dy = (dyn_y * self.config.dynamic_sensitivity / 4.0 + tilt_y * 0.4);
+        let raw_dy = dyn_y * self.config.dynamic_sensitivity / 4.0 + tilt_y * 0.4;
 
         let dx = raw_dx.clamp(-1.0, 1.0);
         let dy = raw_dy.clamp(-1.0, 1.0);
