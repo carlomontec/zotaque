@@ -29,29 +29,29 @@ class TestZotaque(unittest.TestCase):
         # Midpoint (60 C -> 60%)
         self.assertAlmostEqual(engine.calculate_pwm(60.0), 60.0)
 
-    def test_motion_cues_filter_gravity_isolation(self):
-        f = MotionCuesFilter(cutoff_hz=1.5, sample_rate_hz=50.0, sensitivity=1.0)
+    def test_motion_cues_tilt_sensitivity(self):
+        f = MotionCuesFilter(tilt_sensitivity=1.5, dynamic_sensitivity=1.0)
         
-        # Feed static 1g on Z axis for 2 seconds (100 samples)
-        for i in range(100):
-            res = f.process_imu_sample(ax=0.0, ay=0.0, az=9.81, timestamp=i * 0.02)
+        # Tilt device sideways: raw ax = 4.0 m/s^2
+        res = None
+        for i in range(10):
+            res = f.process_imu_sample(ax=4.0, ay=0.0, az=8.9, timestamp=i * 0.02)
         
-        # When stationary, dynamic offset should converge close to 0
-        self.assertAlmostEqual(res["dx"], 0.0, delta=0.05)
-        self.assertAlmostEqual(res["dy"], 0.0, delta=0.05)
-        self.assertAlmostEqual(res["intensity"], 0.0, delta=0.05)
+        self.assertIsNotNone(res)
+        # Sideways tilt should deflect DX
+        self.assertNotEqual(res["dx"], 0.0)
 
-    def test_motion_cues_filter_acceleration_response(self):
-        f = MotionCuesFilter(cutoff_hz=1.5, sample_rate_hz=50.0, sensitivity=1.2)
+    def test_motion_cues_dynamic_acceleration(self):
+        f = MotionCuesFilter(tilt_sensitivity=0.5, dynamic_sensitivity=1.5)
         
-        # Establish baseline
+        # Settle baseline
         for i in range(50):
             f.process_imu_sample(ax=0.0, ay=0.0, az=9.81, timestamp=i * 0.02)
 
-        # Vehicle accelerates forward: sharp +2 m/s^2 linear force along Y axis for several frames
+        # Vehicle accelerates forward: sudden +3 m/s^2 linear force along Y axis
         res = None
-        for i in range(50, 70):
-            res = f.process_imu_sample(ax=0.0, ay=2.0, az=9.81, timestamp=i * 0.02)
+        for i in range(50, 65):
+            res = f.process_imu_sample(ax=0.0, ay=3.0, az=9.81, timestamp=i * 0.02)
 
         self.assertIsNotNone(res)
         self.assertGreater(res["dy"], 0.0)

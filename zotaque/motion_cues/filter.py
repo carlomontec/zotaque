@@ -1,62 +1,65 @@
 """
 Motion Cues Signal Processing & Sensor Fusion.
-Filters road vibration (LPF) and removes gravity/tilt to extract clean 2D vehicle motion vectors.
+Filters road vibration (LPF) and balances handheld tilt with dynamic vehicle inertia.
 """
 
 import math
 import time
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 
 class MotionCuesFilter:
     """
-    Sensor fusion engine isolating vehicle inertia from handheld tilt and road noise.
+    Sensor fusion engine isolating vehicle inertia while respecting handheld tilt.
     """
 
     def __init__(
         self,
-        cutoff_hz: float = 1.5,
-        sample_rate_hz: float = 50.0,
-        sensitivity: float = 1.2
+        tilt_sensitivity: float = 1.0,
+        dynamic_sensitivity: float = 1.2,
+        smoothing: float = 0.85,
+        max_shift_px: float = 50.0
     ):
-        self.cutoff_hz = cutoff_hz
-        self.sample_rate_hz = sample_rate_hz
-        self.sensitivity = sensitivity
+        self.tilt_sensitivity = tilt_sensitivity
+        self.dynamic_sensitivity = dynamic_sensitivity
+        self.smoothing = smoothing
+        self.max_shift_px = max_shift_px
 
-        # Exponential Moving Average smoothing factors
-        # alpha = dt / (RC + dt) = 2*pi*fc*dt / (2*pi*fc*dt + 1)
-        dt = 1.0 / sample_rate_hz
-        rc_vibration = 1.0 / (2.0 * math.pi * cutoff_hz)
-        self.alpha_lpf = dt / (rc_vibration + dt)
+        # Internal state
+        self.filtered_ax = 0.0
+        self.filtered_ay = 0.0
+        self.filtered_az = 9.81
 
-        # Slow EMA for gravity / static tilt estimation (~3.0 sec time constant)
-        rc_gravity = 3.0
-        self.alpha_gravity = dt / (rc_gravity + dt)
-
-        # State vectors
-        self.gravity_x = 0.0
-        self.gravity_y = 0.0
-        self.gravity_z = 9.81
-
-        self.filtered_accel_x = 0.0
-        self.filtered_accel_y = 0.0
-        self.filtered_accel_z = 0.0
+        self.gravity_ax = 0.0
+        self.gravity_ay = 0.0
+        self.gravity_az = 9.81
 
         self.output_dx = 0.0
         self.output_dy = 0.0
-        self.last_timestamp: Optional[float] = None
+        self.last_time: Optional[float] = None
 
-    def reset(self):
-        """Resets filter states."""
-        self.gravity_x = 0.0
-        self.gravity_y = 0.0
-        self.gravity_z = 9.81
-        self.filtered_accel_x = 0.0
-        self.filtered_accel_y = 0.0
-        self.filtered_accel_z = 0.0
+    def update_parameters(self, config: Dict[str, Any]) -> None:
+        """Updates filter parameters live from GUI slider config."""
+        if "tilt_sensitivity" in config:
+            self.tilt_sensitivity = float(config["tilt_sensitivity"])
+        if "dynamic_sensitivity" in config:
+            self.dynamic_sensitivity = float(config["dynamic_sensitivity"])
+        if "smoothing" in config:
+            self.smoothing = max(0.1, min(0.98, float(config["smoothing"])))
+        if "max_shift_px" in config:
+            self.max_shift_px = float(config["max_shift_px"])
+
+    def reset(self) -> None:
+        """Resets filter memory."""
+        self.filtered_ax = 0.0
+        self.filtered_ay = 0.0
+        self.filtered_az = 9.81
+        self.gravity_ax = 0.0
+        self.gravity_ay = 0.0
+        self.gravity_az = 9.81
         self.output_dx = 0.0
         self.output_dy = 0.0
-        self.last_timestamp = None
+        self.last_time = None
 
     def process_imu_sample(
         self,
@@ -66,44 +69,47 @@ class MotionCuesFilter:
         timestamp: Optional[float] = None
     ) -> Dict[str, float]:
         """
-        Processes a raw accelerometer read in m/s^2.
-        Returns:
-            {
-                "dx": float (-1.0 to 1.0 normalized visual horizontal shift),
-                "dy": float (-1.0 to 1.0 normalized visual vertical shift),
-                "intensity": float (0.0 to 1.0 magnitude),
-                "raw_linear_x": float,
-                "raw_linear_y": float
-            }
+        Processes raw IMU read (in m/s^2).
+        Returns normalized 2D motion shift coordinates [-1.0, 1.0] and telemetry.
         """
-        if self.last_timestamp is None:
-            self.gravity_x = ax
-            self.gravity_y = ay
-            self.gravity_z = az
-            self.last_timestamp = timestamp or time.time()
-            return {"dx": 0.0, "dy": 0.0, "intensity": 0.0, "raw_linear_x": 0.0, "raw_linear_y": 0.0}
+        now = timestamp or time.time()
+        if self.last_time is None:
+            self.filtered_ax = ax
+            self.filtered_ay = ay
+            self.filtered_az = az
+            self.gravity_ax = ax
+            self.gravity_ay = ay
+            self.gravity_az = az
+            self.last_time = now
+            return {"dx": 0.0, "dy": 0.0, "intensity": 0.0, "ax": ax, "ay": ay, "az": az}
 
-        # 1. Update slow gravity / tilt tracking
-        self.gravity_x += self.alpha_gravity * (ax - self.gravity_x)
-        self.gravity_y += self.alpha_gravity * (ay - self.gravity_y)
-        self.gravity_z += self.alpha_gravity * (az - self.gravity_z)
+        # 1. Low-Pass Smoothing to eliminate road chatter / vibration
+        alpha = 1.0 - self.smoothing
+        self.filtered_ax += alpha * (ax - self.filtered_ax)
+        self.filtered_ay += alpha * (ay - self.filtered_ay)
+        self.filtered_az += alpha * (az - self.filtered_az)
 
-        # 2. Subtract gravity to get dynamic linear vehicle acceleration
-        lin_x = ax - self.gravity_x
-        lin_y = ay - self.gravity_y
-        lin_z = az - self.gravity_z
+        # 2. Slow baseline tracking for gravity/neutral seating position (~3.5 sec decay)
+        dt = max(0.001, min(0.1, now - self.last_time))
+        self.last_time = now
+        alpha_grav = dt / (3.5 + dt)
+        self.gravity_ax += alpha_grav * (self.filtered_ax - self.gravity_ax)
+        self.gravity_ay += alpha_grav * (self.filtered_ay - self.gravity_ay)
+        self.gravity_az += alpha_grav * (self.filtered_az - self.gravity_az)
 
-        # 3. Apply Low-Pass Filter to remove high frequency vibration (potholes, engine RPM)
-        self.filtered_accel_x += self.alpha_lpf * (lin_x - self.filtered_accel_x)
-        self.filtered_accel_y += self.alpha_lpf * (lin_y - self.filtered_accel_y)
-        self.filtered_accel_z += self.alpha_lpf * (lin_z - self.filtered_accel_z)
+        # 3. Dynamic Vehicle Inertia (Acceleration / Braking / Cornering)
+        dyn_x = (self.filtered_ax - self.gravity_ax)
+        dyn_y = (self.filtered_ay - self.gravity_ay)
 
-        # 4. Map vehicle physics to Apple-style visual cues
-        # Centrifugal turn left/right maps to lateral shift
-        # Forward acceleration/braking maps to vertical shift
-        # Clamped to [-1.0, 1.0]
-        raw_dx = -(self.filtered_accel_x * self.sensitivity) / 4.0
-        raw_dy = (self.filtered_accel_y * self.sensitivity) / 4.0
+        # 4. Instant Handheld Tilt component
+        tilt_x = (self.filtered_ax / 9.81) * self.tilt_sensitivity
+        tilt_y = (self.filtered_ay / 9.81) * self.tilt_sensitivity
+
+        # 5. Combined Motion Cue vector
+        # Centrifugal turn left/right (x-axis force) -> horizontal dot shift
+        # Acceleration/braking (y-axis force) -> vertical dot shift
+        raw_dx = -(dyn_x * self.dynamic_sensitivity / 4.0 + tilt_x * 0.4)
+        raw_dy = (dyn_y * self.dynamic_sensitivity / 4.0 + tilt_y * 0.4)
 
         self.output_dx = max(-1.0, min(1.0, raw_dx))
         self.output_dy = max(-1.0, min(1.0, raw_dy))
@@ -113,6 +119,7 @@ class MotionCuesFilter:
             "dx": round(self.output_dx, 4),
             "dy": round(self.output_dy, 4),
             "intensity": round(intensity, 4),
-            "raw_linear_x": round(self.filtered_accel_x, 3),
-            "raw_linear_y": round(self.filtered_accel_y, 3)
+            "ax": round(ax, 2),
+            "ay": round(ay, 2),
+            "az": round(az, 2)
         }
