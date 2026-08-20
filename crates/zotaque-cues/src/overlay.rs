@@ -76,16 +76,16 @@ impl OverlayWindow {
             &aux,
         )?;
 
-        // Gamescope-native overlay atoms (same as MangoApp)
-        // GAMESCOPE_EXTERNAL_OVERLAY = 1 → composite on top of all games
-        // GAMESCOPE_NO_FOCUS = 1 → never steal gamepad/keyboard focus
-        let gs_overlay = conn.intern_atom(false, b"GAMESCOPE_EXTERNAL_OVERLAY")?.reply()?.atom;
+        // Gamescope Overlay atom: STEAM_OVERLAY = 1
+        // Using STEAM_OVERLAY allows MangoApp (which uses GAMESCOPE_EXTERNAL_OVERLAY)
+        // and Zotaque to render simultaneously on separate compositor planes!
+        let steam_overlay = conn.intern_atom(false, b"STEAM_OVERLAY")?.reply()?.atom;
         let gs_no_focus = conn.intern_atom(false, b"GAMESCOPE_NO_FOCUS")?.reply()?.atom;
 
         conn.change_property32(
             PropMode::REPLACE,
             window,
-            gs_overlay,
+            steam_overlay,
             AtomEnum::CARDINAL,
             &[1],
         )?;
