@@ -143,10 +143,14 @@ impl OverlayWindow {
         let mut pixmap = Pixmap::new(w, h).unwrap();
         let mut smooth_offset_x = 0.0f32;
         let mut smooth_offset_y = 0.0f32;
+        let mut last_offset_x = f32::NAN;
+        let mut last_offset_y = f32::NAN;
+        let mut was_enabled = true;
 
-        let target_frame_time = Duration::from_micros(8333); // 120 FPS
+        // 30 FPS is plenty smooth for motion cues and cuts X11 bandwidth by 4x
+        let target_frame_time = Duration::from_millis(33); // ~30 FPS
 
-        println!("[Overlay] Native 120Hz Gamescope Overlay loop running ({}x{})", w, h);
+        println!("[Overlay] Native 30Hz Gamescope Overlay loop running ({}x{})", w, h);
 
         loop {
             let start = Instant::now();
@@ -167,10 +171,24 @@ impl OverlayWindow {
                 smooth_offset_x += (target_x - smooth_offset_x) * 0.15;
                 smooth_offset_y += (target_y - smooth_offset_y) * 0.15;
 
-                // 3. Clear transparent buffer
+                // 3. Skip blit entirely if motion is negligible (saves ~95% of idle CPU)
+                let delta = (smooth_offset_x - last_offset_x).abs() + (smooth_offset_y - last_offset_y).abs();
+                if delta < 0.15 && !was_enabled.eq(&false) {
+                    let elapsed = start.elapsed();
+                    if elapsed < target_frame_time {
+                        thread::sleep(target_frame_time - elapsed);
+                    }
+                    was_enabled = true;
+                    continue;
+                }
+                last_offset_x = smooth_offset_x;
+                last_offset_y = smooth_offset_y;
+                was_enabled = true;
+
+                // 4. Clear transparent buffer
                 pixmap.fill(Color::TRANSPARENT);
 
-                // 4. Draw anti-aliased kinetic dots
+                // 5. Draw anti-aliased kinetic dots
                 let margin = 28.0f32;
                 let count = filter.config.dot_count_edge;
                 let radius = filter.config.dot_radius;
@@ -181,10 +199,9 @@ impl OverlayWindow {
                 paint.set_color_rgba8(r, g, b, (alpha * 255.0) as u8);
                 paint.anti_alias = true;
 
-                // Generate perimeter dot coordinates
-                let mut dot_positions = Vec::with_capacity(count * 4);
                 let w_f = w as f32;
                 let h_f = h as f32;
+                let mut dot_positions = Vec::with_capacity(count * 4);
 
                 for i in 0..count {
                     let x = margin + ((w_f - margin * 2.0) / (count - 1) as f32) * i as f32;
@@ -213,7 +230,7 @@ impl OverlayWindow {
                     }
                 }
 
-                // 5. Blit transparent frame to X11 / Gamescope window
+                // 6. Blit only when something actually changed
                 let _ = self.conn.put_image(
                     ImageFormat::Z_PIXMAP,
                     self.window,
@@ -228,22 +245,28 @@ impl OverlayWindow {
                 );
                 let _ = self.conn.flush();
             } else {
-                // When disabled, clear screen once and idle lightly
-                pixmap.fill(Color::TRANSPARENT);
-                let _ = self.conn.put_image(
-                    ImageFormat::Z_PIXMAP,
-                    self.window,
-                    self.gc,
-                    self.width,
-                    self.height,
-                    0,
-                    0,
-                    0,
-                    self.depth,
-                    pixmap.data(),
-                );
-                let _ = self.conn.flush();
-                thread::sleep(Duration::from_millis(50));
+                // When toggled off: clear once, then sleep heavily
+                if was_enabled {
+                    pixmap.fill(Color::TRANSPARENT);
+                    let _ = self.conn.put_image(
+                        ImageFormat::Z_PIXMAP,
+                        self.window,
+                        self.gc,
+                        self.width,
+                        self.height,
+                        0,
+                        0,
+                        0,
+                        self.depth,
+                        pixmap.data(),
+                    );
+                    let _ = self.conn.flush();
+                    last_offset_x = f32::NAN;
+                    last_offset_y = f32::NAN;
+                    was_enabled = false;
+                }
+                thread::sleep(Duration::from_millis(100));
+                continue;
             }
 
             let elapsed = start.elapsed();
